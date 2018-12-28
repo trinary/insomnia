@@ -12,14 +12,19 @@ import {
   CONTENT_TYPE_FORM_DATA,
   CONTENT_TYPE_FORM_URLENCODED,
   CONTENT_TYPE_GRAPHQL,
-  getContentTypeFromHeaders
+  getContentTypeFromHeaders,
 } from '../../../../common/constants';
-import type { Request, RequestBodyParameter } from '../../../../models/request';
+import type {
+  Request,
+  RequestBody,
+  RequestBodyParameter,
+  RequestHeader,
+} from '../../../../models/request';
 import {
   newBodyFile,
   newBodyForm,
   newBodyFormUrlEncoded,
-  newBodyRaw
+  newBodyRaw,
 } from '../../../../models/request';
 import GraphQLEditor from './graph-ql-editor';
 import { getContentTypeHeader } from '../../../../common/misc';
@@ -30,15 +35,16 @@ import AskModal from '../../modals/ask-modal';
 
 type Props = {
   // Required
-  onChange: Function,
-  onChangeHeaders: Function,
-  handleUpdateRequestMimeType: Function,
+  onChange: (r: Request, body: RequestBody) => Promise<Request>,
+  onChangeHeaders: (r: Request, headers: Array<RequestHeader>) => Promise<Request>,
+  handleUpdateRequestMimeType: (r: Request, mimeType: string) => Promise<Request>,
   handleRender: Function,
   handleGetRenderContext: Function,
   request: Request,
   workspace: Workspace,
   settings: Settings,
-  environmentId: string
+  environmentId: string,
+  isVariableUncovered: boolean,
 };
 
 @autobind
@@ -49,25 +55,25 @@ class BodyEditor extends React.PureComponent<Props> {
     const oldContentType = request.body.mimeType || '';
     const newBody = newBodyRaw(rawValue, oldContentType);
 
-    onChange(newBody);
+    onChange(request, newBody);
   }
 
   _handleGraphQLChange(content: string) {
-    const { onChange } = this.props;
+    const { onChange, request } = this.props;
     const newBody = newBodyRaw(content, CONTENT_TYPE_GRAPHQL);
-    onChange(newBody);
+    onChange(request, newBody);
   }
 
   _handleFormUrlEncodedChange(parameters: Array<RequestBodyParameter>) {
-    const { onChange } = this.props;
+    const { onChange, request } = this.props;
     const newBody = newBodyFormUrlEncoded(parameters);
-    onChange(newBody);
+    onChange(request, newBody);
   }
 
   _handleFormChange(parameters: Array<RequestBodyParameter>) {
-    const { onChange } = this.props;
+    const { onChange, request } = this.props;
     const newBody = newBodyForm(parameters);
-    onChange(newBody);
+    onChange(request, newBody);
   }
 
   async _handleFileChange(path: string) {
@@ -96,15 +102,15 @@ class BodyEditor extends React.PureComponent<Props> {
         ),
         onDone: saidYes => {
           if (saidYes) {
-            onChangeHeaders(headers);
+            onChangeHeaders(request, headers);
           }
-        }
+        },
       });
     }
 
     const newBody = newBodyFile(path);
 
-    onChange(newBody);
+    onChange(request, newBody);
   }
 
   render() {
@@ -114,7 +120,8 @@ class BodyEditor extends React.PureComponent<Props> {
       settings,
       environmentId,
       handleRender: render,
-      handleGetRenderContext: getRenderContext
+      handleGetRenderContext: getRenderContext,
+      isVariableUncovered,
     } = this.props;
 
     const noRender = request.settingDisableRenderRequestBody;
@@ -135,6 +142,7 @@ class BodyEditor extends React.PureComponent<Props> {
           handleRender={handleRender}
           handleGetRenderContext={handleGetRenderContext}
           nunjucksPowerUserMode={settings.nunjucksPowerUserMode}
+          isVariableUncovered={isVariableUncovered}
           parameters={request.body.params || []}
         />
       );
@@ -146,6 +154,7 @@ class BodyEditor extends React.PureComponent<Props> {
           handleRender={handleRender}
           handleGetRenderContext={handleGetRenderContext}
           nunjucksPowerUserMode={settings.nunjucksPowerUserMode}
+          isVariableUncovered={isVariableUncovered}
           parameters={request.body.params || []}
         />
       );
@@ -163,6 +172,8 @@ class BodyEditor extends React.PureComponent<Props> {
           settings={settings}
           environmentId={environmentId}
           getRenderContext={handleGetRenderContext}
+          nunjucksPowerUserMode={settings.nunjucksPowerUserMode}
+          isVariableUncovered={isVariableUncovered}
           onChange={this._handleGraphQLChange}
         />
       );
@@ -181,6 +192,7 @@ class BodyEditor extends React.PureComponent<Props> {
           render={handleRender}
           getRenderContext={handleGetRenderContext}
           nunjucksPowerUserMode={settings.nunjucksPowerUserMode}
+          isVariableUncovered={isVariableUncovered}
           onChange={this._handleRawChange}
         />
       );

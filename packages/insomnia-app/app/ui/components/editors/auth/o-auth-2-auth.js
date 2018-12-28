@@ -1,5 +1,5 @@
 // @flow
-import type { Request } from '../../../../models/request';
+import type { Request, RequestAuthentication } from '../../../../models/request';
 import type { OAuth2Token } from '../../../../models/o-auth-2-token';
 
 import * as React from 'react';
@@ -13,7 +13,7 @@ import {
   GRANT_TYPE_PASSWORD,
   RESPONSE_TYPE_ID_TOKEN,
   RESPONSE_TYPE_ID_TOKEN_TOKEN,
-  RESPONSE_TYPE_TOKEN
+  RESPONSE_TYPE_TOKEN,
 } from '../../../../network/o-auth-2/constants';
 import authorizationUrls from '../../../../datasets/authorization-urls';
 import accessTokenUrls from '../../../../datasets/access-token-urls';
@@ -26,24 +26,26 @@ import TimeFromNow from '../../time-from-now';
 import Button from '../../base/button';
 import { showModal } from '../../modals';
 import ResponseDebugModal from '../../modals/response-debug-modal';
+import type { Settings } from '../../../../models/settings';
 
 type Props = {
   handleRender: Function,
   handleGetRenderContext: Function,
-  handleUpdateSettingsShowPasswords: Function,
+  handleUpdateSettingsShowPasswords: boolean => Promise<Settings>,
   nunjucksPowerUserMode: boolean,
-  onChange: Function,
+  onChange: (Request, RequestAuthentication) => Promise<Request>,
   request: Request,
   showPasswords: boolean,
+  isVariableUncovered: boolean,
 
   // Optional
-  oAuth2Token: OAuth2Token | null
+  oAuth2Token: ?OAuth2Token,
 };
 
 type State = {
   error: string,
   loading: boolean,
-  showAdvanced: boolean
+  showAdvanced: boolean,
 };
 
 const getAuthorizationUrls = () => authorizationUrls;
@@ -61,7 +63,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
     this.state = {
       error: '',
       loading: false,
-      showAdvanced: showAdvanced // Remember from last time
+      showAdvanced: showAdvanced, // Remember from last time
     };
   }
 
@@ -80,7 +82,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
     } else {
       await models.oAuth2Token.create({
         accessToken,
-        parentId: this.props.request._id
+        parentId: this.props.request._id,
       });
     }
   }
@@ -94,7 +96,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
     } else {
       await models.oAuth2Token.create({
         refreshToken,
-        parentId: this.props.request._id
+        parentId: this.props.request._id,
       });
     }
   }
@@ -133,11 +135,12 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
   }
 
   _handleChangeProperty(property: string, value: string | boolean): void {
-    const { request } = this.props;
+    const { onChange, request } = this.props;
     const authentication = Object.assign({}, request.authentication, {
-      [property]: value
+      [property]: value,
     });
-    this.props.onChange(authentication);
+
+    onChange(request, authentication);
   }
 
   _handlerChangeResponseType(e: SyntheticEvent<HTMLInputElement>): void {
@@ -239,9 +242,15 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
     property: string,
     onChange: Function,
     help: string | null = null,
-    handleAutocomplete: Function | null = null
+    handleAutocomplete: Function | null = null,
   ): React.Element<*> {
-    const { handleRender, handleGetRenderContext, request, nunjucksPowerUserMode } = this.props;
+    const {
+      handleRender,
+      handleGetRenderContext,
+      request,
+      nunjucksPowerUserMode,
+      isVariableUncovered,
+    } = this.props;
     const { authentication } = request;
     const id = label.replace(/ /g, '-');
     const type = !this.props.showPasswords && property === 'password' ? 'password' : 'text';
@@ -256,7 +265,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
         <td className="wide">
           <div
             className={classnames('form-control form-control--underlined no-margin', {
-              'form-control--inactive': authentication.disabled
+              'form-control--inactive': authentication.disabled,
             })}>
             <OneLineEditor
               id={id}
@@ -267,6 +276,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
               nunjucksPowerUserMode={nunjucksPowerUserMode}
               getAutocompleteConstants={handleAutocomplete}
               getRenderContext={handleGetRenderContext}
+              isVariableUncovered={isVariableUncovered}
             />
           </div>
         </td>
@@ -279,7 +289,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
     property: string,
     options: Array<{ name: string, value: string }>,
     onChange: Function,
-    help: string | null = null
+    help: string | null = null,
   ): React.Element<*> {
     const { request } = this.props;
     const { authentication } = request;
@@ -299,7 +309,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
         <td className="wide">
           <div
             className={classnames('form-control form-control--outlined no-margin', {
-              'form-control--inactive': authentication.disabled
+              'form-control--inactive': authentication.disabled,
             })}>
             <select id={id} onChange={onChange} value={value}>
               {options.map(({ name, value }) => (
@@ -315,7 +325,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
   }
 
   renderGrantTypeFields(
-    grantType: string
+    grantType: string,
   ): { basic: Array<React.Element<*>>, advanced: Array<React.Element<*>> } {
     let basicFields = [];
     let advancedFields = [];
@@ -325,7 +335,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
     const clientSecret = this.renderInputRow(
       'Client Secret',
       'clientSecret',
-      this._handleChangeClientSecret
+      this._handleChangeClientSecret,
     );
 
     const authorizationUrl = this.renderInputRow(
@@ -333,7 +343,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
       'authorizationUrl',
       this._handleChangeAuthorizationUrl,
       null,
-      getAuthorizationUrls
+      getAuthorizationUrls,
     );
 
     const accessTokenUrl = this.renderInputRow(
@@ -341,7 +351,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
       'accessTokenUrl',
       this._handleChangeAccessTokenUrl,
       null,
-      getAccessTokenUrls
+      getAccessTokenUrls,
     );
 
     const redirectUri = this.renderInputRow(
@@ -350,7 +360,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
       this._handleChangeRedirectUrl,
       'This can be whatever you want or need it to be. Insomnia will automatically ' +
         'detect a redirect in the client browser window and extract the code from the ' +
-        'redirected URL'
+        'redirected URL',
     );
 
     const state = this.renderInputRow('State', 'state', this._handleChangeState);
@@ -365,7 +375,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
       'Header Prefix',
       'tokenPrefix',
       this._handleChangeTokenPrefix,
-      'Change Authorization header prefix from Bearer to something else'
+      'Change Authorization header prefix from Bearer to something else',
     );
 
     const responseType = this.renderSelectRow(
@@ -374,24 +384,24 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
       [
         { name: 'Access Token', value: RESPONSE_TYPE_TOKEN },
         { name: 'ID Token', value: RESPONSE_TYPE_ID_TOKEN },
-        { name: 'ID and Access Token', value: RESPONSE_TYPE_ID_TOKEN_TOKEN }
+        { name: 'ID and Access Token', value: RESPONSE_TYPE_ID_TOKEN_TOKEN },
       ],
       this._handlerChangeResponseType,
-      'Indicates the type of credentials returned in the response'
+      'Indicates the type of credentials returned in the response',
     );
 
     const audience = this.renderInputRow(
       'Audience',
       'audience',
       this._handleChangeAudience,
-      'Indicate what resource server to access'
+      'Indicate what resource server to access',
     );
 
     const resource = this.renderInputRow(
       'Resource',
       'resource',
       this._handleChangeResource,
-      'Indicate what resource to access'
+      'Indicate what resource to access',
     );
 
     const credentialsInBody = this.renderSelectRow(
@@ -399,10 +409,10 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
       'credentialsInBody',
       [
         { name: 'As Basic Auth Header (default)', value: 'false' },
-        { name: 'In Request Body', value: 'true' }
+        { name: 'In Request Body', value: 'true' },
       ],
       this._handleChangeCredentialsInBody,
-      'Whether or not to send credentials as Basic Auth, or as plain text in the request body'
+      'Whether or not to send credentials as Basic Auth, or as plain text in the request body',
     );
 
     const enabled = this.renderEnabledRow(this._handleChangeEnabled);
@@ -414,7 +424,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
         clientId,
         clientSecret,
         redirectUri,
-        enabled
+        enabled,
       ];
 
       advancedFields = [scope, state, credentialsInBody, tokenPrefix];
@@ -435,7 +445,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
     return { basic: basicFields, advanced: advancedFields };
   }
 
-  static renderExpireAt(token: OAuth2Token | null): React.Element<*> | string | null {
+  static renderExpireAt(token: ?OAuth2Token): React.Element<*> | string | null {
     if (!token || !token.accessToken) {
       return null;
     }
@@ -505,19 +515,19 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
               [
                 {
                   name: 'Authorization Code',
-                  value: GRANT_TYPE_AUTHORIZATION_CODE
+                  value: GRANT_TYPE_AUTHORIZATION_CODE,
                 },
                 { name: 'Implicit', value: GRANT_TYPE_IMPLICIT },
                 {
                   name: 'Resource Owner Password Credentials',
-                  value: GRANT_TYPE_PASSWORD
+                  value: GRANT_TYPE_PASSWORD,
                 },
                 {
                   name: 'Client Credentials',
-                  value: GRANT_TYPE_CLIENT_CREDENTIALS
-                }
+                  value: GRANT_TYPE_CLIENT_CREDENTIALS,
+                },
               ],
-              this._handleChangeGrantType
+              this._handleChangeGrantType,
             )}
             {fields.basic}
             <tr>
@@ -527,7 +537,7 @@ class OAuth2Auth extends React.PureComponent<Props, State> {
                     style={{ minWidth: '0.8rem' }}
                     className={classnames(
                       'fa fa--skinny',
-                      `fa-caret-${showAdvanced ? 'down' : 'right'}`
+                      `fa-caret-${showAdvanced ? 'down' : 'right'}`,
                     )}
                   />
                   Advanced Options

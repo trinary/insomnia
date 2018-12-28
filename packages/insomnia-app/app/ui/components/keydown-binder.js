@@ -6,10 +6,10 @@ import { isMac } from '../../common/constants';
 
 type Props = {
   onKeydown: Function,
-  children?: React.Node,
+  children: React.Node,
   disabled?: boolean,
   scoped?: boolean,
-  stopMetaPropagation?: boolean
+  stopMetaPropagation?: boolean,
 };
 
 @autobind

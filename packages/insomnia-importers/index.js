@@ -9,7 +9,7 @@ const importers = [
   require('./src/importers/har'),
   require('./src/importers/curl'),
   require('./src/importers/swagger2'),
-  require('./src/importers/openapi3')
+  require('./src/importers/openapi3'),
 ];
 
 module.exports.convert = async function(contents) {
@@ -17,20 +17,25 @@ module.exports.convert = async function(contents) {
     const resources = await importer.convert(contents);
 
     if (resources) {
-      return {
+      if (resources.length > 0 && resources[0].variable) {
+        resources[0].environment = resources[0].variable;
+      }
+      let parsedData = {
         type: {
           id: importer.id,
           name: importer.name,
-          description: importer.description
+          description: importer.description,
         },
         data: {
           _type: 'export',
           __export_format: 3,
           __export_date: utils.getDateString(),
           __export_source: 'insomnia.importers:v0.1.0',
-          resources: resources.map(utils.setDefaults)
-        }
+          resources: resources.map(utils.setDefaults),
+        },
       };
+
+      return parsedData;
     }
   }
 
