@@ -27,7 +27,7 @@ module.exports.convert = async function(rawData) {
     _id: WORKSPACE_ID,
     parentId: null,
     name: `${api.info.title} ${api.info.version}`,
-    description: api.info.description || ''
+    description: api.info.description || '',
   };
 
   const baseEnv = {
@@ -36,8 +36,8 @@ module.exports.convert = async function(rawData) {
     parentId: '__WORKSPACE_1__',
     name: 'Base environment',
     data: {
-      base_url: '{{ scheme }}://{{ host }}{{ base_path }}'
-    }
+      base_url: '{{ scheme }}://{{ host }}{{ base_path }}',
+    },
   };
 
   const firstServer = new URL(api.servers[0].url);
@@ -49,8 +49,8 @@ module.exports.convert = async function(rawData) {
     data: {
       base_path: firstServer.pathname || '/',
       scheme: firstServer.protocol.slice(0, -1) || 'http',
-      host: firstServer.hostname || ''
-    }
+      host: firstServer.hostname || '',
+    },
   };
 
   const endpoints = parseEndpoints(api);
@@ -73,7 +73,7 @@ async function parseDocument(rawData) {
     }
 
     // Await here so we catch any exceptions
-    return await SwaggerParser.bundle(api);
+    return await SwaggerParser.dereference(api);
   } catch (err) {
     return null;
   }
@@ -146,7 +146,7 @@ function importFolderItem(item, parentId) {
     _id: `__GRP_${requestGroupCount++}__`,
     _type: 'request_group',
     name: item.name || `Folder {requestGroupCount}`,
-    description: item.description || ''
+    description: item.description || '',
   };
 }
 
@@ -172,7 +172,7 @@ function importRequest(endpointSchema, globalMimeTypes, id, parentId) {
     body: prepareBody(endpointSchema, globalMimeTypes),
     headers: prepareHeaders(endpointSchema),
     parameters: prepareQueryParams(endpointSchema),
-    description: endpointSchema.description
+    description: endpointSchema.description,
   };
 }
 
@@ -235,7 +235,7 @@ function prepareBody(endpointSchema, globalMimeTypes) {
     const bodyParameter = parameters.find(isSendInBody);
     if (!bodyParameter) {
       return {
-        mimeType: supportedMimeType
+        mimeType: supportedMimeType,
       };
     }
 
@@ -243,13 +243,13 @@ function prepareBody(endpointSchema, globalMimeTypes) {
     const text = JSON.stringify(example, null, 2);
     return {
       mimeType: supportedMimeType,
-      text
+      text,
     };
   }
 
   if (mimeTypes && mimeTypes.length) {
     return {
-      mimeType: mimeTypes[0] || undefined
+      mimeType: mimeTypes[0] || undefined,
     };
   } else {
     return {};
@@ -268,7 +268,7 @@ function convertParameters(parameters) {
     return {
       name,
       disabled: required !== true,
-      value: `${generateParameterExample(parameter)}`
+      value: `${generateParameterExample(parameter)}`,
     };
   });
 }
@@ -294,14 +294,7 @@ function generateParameterExample(schema) {
     integer: () => 0,
     boolean: () => true,
     object: schema => {
-      const example = {};
-      const { properties } = schema;
-
-      Object.keys(properties).forEach(propertyName => {
-        example[propertyName] = generateParameterExample(properties[propertyName]);
-      });
-
-      return example;
+      return schema.schema.example;
     },
     array: schema => {
       const value = generateParameterExample(schema.items);
@@ -310,7 +303,7 @@ function generateParameterExample(schema) {
       } else {
         return [value];
       }
-    }
+    },
   };
 
   if (typeof schema === 'string') {
